@@ -1,0 +1,22 @@
+services:
+  # 1. Cấu hình Web Service (Django App)
+  - type: web
+    name: django-app
+    env: python
+    buildCommand: "./build.sh" # File chứa lệnh cài đặt và migrate
+    startCommand: "gunicorn myproject.wsgi:application" # Lệnh chạy server
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: postgres-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+
+databases:
+  # 2. Cấu hình Database (PostgreSQL)
+  - name: postgres-db
+    databaseName: my_django_db
+    user: admin
