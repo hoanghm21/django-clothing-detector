@@ -2,7 +2,6 @@
 YOLOv8 DeepFashion2 Clothing Detection
 13 Categories với tiếng Anh (như yêu cầu bài tập)
 """
-from ultralytics import YOLO
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -56,10 +55,10 @@ def get_model():
     global _model
     
     if _model is None:
-        print("🔄 Đang tải YOLOv8 DeepFashion2 model từ Hugging Face...")
-        
+        from ultralytics import YOLO
         from huggingface_hub import hf_hub_download
-        import os
+        
+        print("🔄 Đang tải YOLOv8 DeepFashion2 model từ Hugging Face...")
         
         # Tải model từ Hugging Face
         model_path = hf_hub_download(
