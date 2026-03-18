@@ -6,6 +6,8 @@ from ultralytics import YOLO
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import os
+import requests
+from django.conf import settings
 
 # DeepFashion2 Categories (13 classes)
 DEEPFASHION2_CATEGORIES = {
@@ -44,9 +46,13 @@ COLOR_PALETTE = {
 # Global model cache
 _model = None
 
+# Check if running in production (Render)
+def is_production():
+    return not settings.DEBUG
+
 
 def get_model():
-    """Load YOLOv8 DeepFashion2 model từ Hugging Face"""
+    """Load YOLOv8 DeepFashion2 model từ Hugging Face (chỉ local)"""
     global _model
     
     if _model is None:
@@ -67,14 +73,62 @@ def get_model():
     return _model
 
 
-def detect_clothing(image_path, confidence=0.25):
+def detect_clothing_api(image_path, confidence=0.25):
     """
-    Nhận diện quần áo trong ảnh sử dụng YOLOv8 DeepFashion2.
-    Model có 13 categories: shirts, pants, dresses, etc.
-    Trả về cả bounding box và segmentation mask.
+    Gọi HuggingFace Inference API (dùng cho production).
+    Không cần load model vào RAM.
+    """
+    API_URL = "https://api-inference.huggingface.co/models/Bingsu/adetailer"
     
-    Returns:
-        list: Danh sách các item được phát hiện với label tiếng Anh
+    # Đọc file ảnh
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+    
+    # Gọi API
+    response = requests.post(API_URL, data=image_data, timeout=60)
+    
+    if response.status_code != 200:
+        print(f"API Error: {response.status_code} - {response.text}")
+        return []
+    
+    result = response.json()
+    
+    # Parse kết quả từ API
+    clothing_items = []
+    
+    if isinstance(result, list):
+        for detection in result:
+            label = detection.get('label', '')
+            score = detection.get('score', 0)
+            box = detection.get('box', {})
+            
+            if score < confidence:
+                continue
+            
+            # Map label to category
+            label_id = None
+            for id, name in DEEPFASHION2_CATEGORIES.items():
+                if name in label.lower():
+                    label_id = id
+                    break
+            
+            if label_id is None:
+                label_id = 0
+            
+            clothing_items.append({
+                'label': DEEPFASHION2_CATEGORIES.get(label_id, label),
+                'label_vn': DEEPFASHION2_CATEGORIES.get(label_id, label),
+                'score': score,
+                'bbox': [box.get('xmin', 0), box.get('ymin', 0), box.get('xmax', 0), box.get('ymax', 0)],
+                'label_id': label_id
+            })
+    
+    return clothing_items
+
+
+def detect_clothing_local(image_path, confidence=0.25):
+    """
+    Chạy model local (dùng cho development).
     """
     model = get_model()
     
@@ -120,6 +174,23 @@ def detect_clothing(image_path, confidence=0.25):
             clothing_items.append(item)
     
     return clothing_items
+
+
+def detect_clothing(image_path, confidence=0.25):
+    """
+    Nhận diện quần áo trong ảnh.
+    - Production (Render): Gọi HuggingFace API
+    - Development (Local): Load model local
+    
+    Returns:
+        list: Danh sách các item được phát hiện với label tiếng Anh
+    """
+    if is_production():
+        print("🌐 Using HuggingFace Inference API (production mode)")
+        return detect_clothing_api(image_path, confidence)
+    else:
+        print("💻 Using local model (development mode)")
+        return detect_clothing_local(image_path, confidence)
 
 
 def create_polygon_image(original_path, clothing_items, output_path):
