@@ -4,7 +4,7 @@ services:
     env: python
     plan: free # BẮT BUỘC thêm dòng này
     buildCommand: "./build.sh"
-    startCommand: "gunicorn myproject.wsgi:application"
+    startCommand: "gunicorn mysite.wsgi:application"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
